@@ -6,20 +6,26 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "API для получения времени намаза работает! Перейдите на /api/prayer-times"
+    return "API работает! Перейдите на /api/prayer-times"
 
 @app.route('/api/prayer-times')
 def get_prayer_times():
     url = "https://takvim.tj/"
     
+    # Маскируем наш запрос под обычный браузер Google Chrome на Windows
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7'
+    }
+    
     try:
-        # Делаем запрос к сайту
-        response = requests.get(url, verify=False)
+        # Передаем headers в запрос
+        response = requests.get(url, headers=headers, verify=False, timeout=10)
         response.raise_for_status()
         
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Находим все таблицы на странице
         tables = soup.find_all('table')
         
         masjid_times = {}
@@ -28,7 +34,6 @@ def get_prayer_times():
         for table in tables:
             text = table.text
             
-            # Парсим блок: Вақтҳои намоз дар масҷиди Марказии шаҳри Душанбе
             if "Бомдод" in text and "Пешин" in text and not "аз" in text:
                 rows = table.find_all('tr')
                 for row in rows:
@@ -39,10 +44,7 @@ def get_prayer_times():
                         if name:
                             masjid_times[name] = time_val
                             
-            # Парсим блок: Вақтҳои намоз барои шаҳри Душанбе, Имрӯз
             elif "аз" in text and "то" in text and "Имрӯз" in table.find_previous_sibling('text') or True:
-                # Так как на сайте несколько таблиц с "аз" и "то" (имруз, пагох), 
-                # берем первую подходящую для "Имруз"
                 rows = table.find_all('tr')
                 for row in rows:
                     cols = row.find_all('td')
@@ -50,11 +52,9 @@ def get_prayer_times():
                         name = cols[0].text.strip()
                         time_val = cols[1].text.strip()
                         if name and "аз" in time_val:
-                            # Убираем лишние переносы строк
                             name = name.replace('\r', '').replace('\n', ' ')
                             today_times[name] = time_val
                             
-                # Если нашли сегодняшнее время, прерываем поиск остальных дней (пагох, рузи)
                 if today_times:
                     break
 
